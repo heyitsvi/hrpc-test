@@ -7,8 +7,8 @@ await server.listen();
 console.log("HRPC Server is running");
 
 server.respond('hello', (req) => {
-    const {name} = req;
-    return `Hello ${name}`;
+    const { name } = JSON.parse(req.toString()); 
+    return Buffer.from(`Hello ${name} \n`);
 })
 
 export const serverPublicKey = server.publicKey;
