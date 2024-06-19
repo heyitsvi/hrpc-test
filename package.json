@@ -11,6 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "@hyperswarm/rpc": "^3.3.2",
-    "fastify": "^4.28.0"
+    "fastify": "^4.28.0",
+    "hyperbee": "^2.19.7",
+    "hypercore": "^10.37.8"
   }
 }
