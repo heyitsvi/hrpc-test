@@ -1,68 +1,48 @@
 import RPC from '@hyperswarm/rpc';
 import Fastify from 'fastify';
-import { serverPublicKey } from './hrpc.mjs';
-import Hyperbee from 'hyperbee';
-import Hypercore from 'hypercore';
+
+const serverPublicKey = '45996bcb52a9936524fb86b25b5ba58c62d6f93cc18fb90b267b2f1741f3a4df';
 
 const fastify = Fastify({
-    logger: false
-  })
-
-const core = new Hypercore('./mydb');
-await core.ready();
-
-// Create a Hyperbee instance
-const db = new Hyperbee(core, {
-  keyEncoding: 'utf-8',
-  valueEncoding: 'json'
+  logger: false
 });
 
-// Endpoint to get logs
-fastify.get('/log', async (req, res) => {
-  const stream = db.createReadStream();
-  const logs = [];
-  for await (const { key, value } of stream) {  
-    logs.push({ name: key, count: value });
-  }
-  res.send(logs);
-});
-
-// Log requests and update word counts
-async function logRequest(key) {
-  const countEntry = await db.get(key);
-  const count = countEntry ? countEntry.value : 0;
-  await db.put(key, count + 1);
-}
-
-fastify.get('/', function (request, reply) {
-    reply.send({ hello: 'world' })
-})
-
+// Initialize HRPC client
 const rpc = new RPC();
-const client = rpc.connect(serverPublicKey);
+const client = rpc.connect(Buffer.from(serverPublicKey, 'hex'));
 
 // Define the /hello endpoint
 fastify.post('/hello', async (request, reply) => {
-    const { name } = request.body; // Extract the 'name' parameter from the request body
-    try {
-      // Send a request to the 'hello' method of Backend 1 via HRPC
-      const reqBuffer = Buffer.from(JSON.stringify({ name }));
-      const responseBuffer = await client.request('hello', reqBuffer);
-      const response = responseBuffer.toString(); 
-      await logRequest(name);
-      reply.send(response); // Send the response from Backend 1 back to the client
-      // console.log(response);
-    } catch (err) {
-      reply.status(500).send(err); // Handle any errors that occur during the request
-    }
-});
-  
-// Run the server!
-fastify.listen({ port: 3000 }, function (err, address) {
-if (err) {
-    fastify.log.error(err)
-    process.exit(1)
-}
- console.log(`Server is now listening on ${address}`);
-})
+  const { name } = request.body;
+  try {
+    // Send a request to the 'hello' method of Backend 1 via HRPC
+    const reqBuffer = Buffer.from(JSON.stringify({ name }));
+    const responseBuffer = await client.request('hello', reqBuffer);
+    const response = responseBuffer.toString();
 
+    await client.request('logRequest', reqBuffer);
+
+    reply.send(response); // Send the response from Backend 1 back to the client
+  } catch (err) {
+    reply.status(500).send(err); 
+}});
+
+// Define the /log endpoint to get logs from Backend 1
+fastify.get('/log', async (request, reply) => {
+  try {
+    const responseBuffer = await client.request('getLogs');
+    const logs = JSON.parse(responseBuffer.toString());
+    reply.send(logs); // Send the logs from Backend 1 back to the client
+  } catch (err) {
+    reply.status(500).send(err); 
+  }
+});
+
+// Run the server
+fastify.listen({ port: 3000 }, function (err, address) {
+  if (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+  console.log(`Server is now listening on ${address}`);
+});
